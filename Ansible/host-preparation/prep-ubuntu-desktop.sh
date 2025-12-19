@@ -166,8 +166,8 @@ touch "${SSH_DIR}/known_hosts"
 chmod 644 "${SSH_DIR}/known_hosts"
 chown "${USER_NAME}:${USER_NAME}" "${SSH_DIR}/known_hosts"
 
-echo "PubkeyAuthentication yes" > /etc/ssh/sshd_config
-echo "PasswordAuthentication no" > /etc/ssh/sshd_config
+echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config
+echo "PasswordAuthentication no" >> /etc/ssh/sshd_config
 
 ### ---------------------------
 ### 7) Final SSH health check
