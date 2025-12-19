@@ -6,7 +6,7 @@
 # - Ensures SSH is enabled, started, and healthy
 # - Downloads the private SSH key from a URL and applies correct permissions
 # - Runs fully non-interactively
-# bash -c "$(curl -fsSL https://raw.githubusercontent.com/m3d1/linux-scripts/main/ansible/host_preparation/prep-ubuntu-desktop.sh)"
+# bash -c "$(curl -fsSL https://raw.githubusercontent.com/m3d1/linux-scripts/refs/heads/main/Ansible/host-preparation/prep-ubuntu-desktop.sh)"
 
 set -euo pipefail
 

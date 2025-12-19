@@ -3,7 +3,7 @@
 # Purpose: Generate an SSH key pair on the Semaphore UI server
 # This script creates a secure RSA key pair without a passphrase
 # and displays the public key for distribution to target hosts.
-# bash -c "$(curl -fsSL # bash -c "$(curl -fsSL https://raw.githubusercontent.com/m3d1/linux-scripts/main/ansible/host_preparation/prep-ubuntu-desktop.sh)")"
+# bash -c "$(curl -fsSL # bash -c "$(curl -fsSL https://github.com/m3d1/linux-scripts/blob/main/Ansible/host%20preparation/prep-semaphore-host.sh)")"
 
 set -euo pipefail
 
