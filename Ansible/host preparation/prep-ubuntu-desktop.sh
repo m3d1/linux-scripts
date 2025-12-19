@@ -6,6 +6,7 @@
 # - Ensures SSH is enabled, started, and healthy
 # - Downloads the private SSH key from a URL and applies correct permissions
 # - Runs fully non-interactively
+# bash -c "$(curl -fsSL https://raw.githubusercontent.com/m3d1/linux-scripts/main/ansible/host_preparation/prep-ubuntu-desktop.sh)"
 
 set -euo pipefail
 
@@ -15,7 +16,7 @@ set -euo pipefail
 USER_NAME="semaphore"
 USER_SHELL="/bin/bash"
 SSH_DIR="/home/${USER_NAME}/.ssh"
-PRIVATE_KEY_URL="REPLACE_WITH_URL"  # <-- Put your HTTPS URL here (e.g., https://example.com/id_rsa)
+PRIVATE_KEY_URL="https://raw.githubusercontent.com/m3d1/linux-scripts/refs/heads/main/Ansible/public_key/id_rsa.pub"  # <-- Put your HTTPS URL here (e.g., https://example.com/id_rsa)
 PRIVATE_KEY_PATH="${SSH_DIR}/id_rsa"
 SUDOERS_DROPIN="/etc/sudoers.d/99-${USER_NAME}-nopasswd"
 
