@@ -309,15 +309,40 @@
       loop: "{{ user_homes.stdout_lines }}"
       register: homes_stat
 
-    - name: Ensure ~/.omnissa exists for each user
+    - name: Ensure /home/ubuntu/.omnissa exists
       ansible.builtin.file:
-        path: "{{ item.stat.path }}/.omnissa"
+        path: /home/ubuntu/.omnissa
         state: directory
-        owner: "{{ item.stat.pw_name | default('root') }}"
-        group: "{{ item.stat.gr_name | default('root') }}"
+        owner: ubuntu
+        group: ubuntu
         mode: '0755'
-      loop: "{{ homes_stat.results }}"
-      when: item.stat.exists | default(false)
+
+    - name: Ensure /home/ubuntu/.omnissa/horizon-preferences exists
+      ansible.builtin.file:
+        path: /home/ubuntu/.omnissa/horizon-preferences
+        state: touch
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
+
+    - name: Apply Horizon preferences (idempotent) for user ubuntu
+      ansible.builtin.lineinfile:
+        path: /home/ubuntu/.omnissa/horizon-preferences
+        regexp: "^{{ item.key | regex_escape }}\\s*=.*$"
+        line: "{{ item.key }} = '{{ item.val }}'"
+        create: true
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
+        backrefs: false
+      loop:
+        - { key: 'view.sslVerificationMode',    val: "{{ horizon_ssl_verification_mode }}" }
+        - { key: 'view.defaultBroker',         val: "{{ horizon_default_broker }}" }
+        - { key: 'view.autoConnectBroker',     val: "{{ horizon_auto_connect_broker }}" }
+        - { key: 'view.allMonitors',           val: "{{ horizon_all_monitors }}" }
+        - { key: 'view.enableH264',            val: "{{ horizon_enable_h264 }}" }
+        - { key: 'view.nonInteractive',        val: "{{ horizon_non_interactive }}" }
+        - { key: 'view.shareRemovableStorage', val: "{{ horizon_share_removable_storage }}" }
 
     # - name: Ensure horizon-preferences file exists for each user
     #   ansible.builtin.file:
@@ -357,27 +382,6 @@
 
     
 # --- Préférences pour l'utilisateur ubuntu -------------------------------
-
-- name: Apply Horizon preferences (idempotent) for user ubuntu
-  ansible.builtin.lineinfile:
-    path: /home/ubuntu/.omnissa/horizon-preferences
-    regexp: "^{{ item.key | regex_escape }}\\s*=.*$"
-    line: "{{ item.key }} = '{{ item.val }}'"
-    create: true
-    owner: ubuntu
-    group: ubuntu
-    mode: '0644'
-    backrefs: false
-  loop:
-    - { key: 'view.sslVerificationMode',    val: "{{ horizon_ssl_verification_mode }}" }
-    - { key: 'view.defaultBroker',         val: "{{ horizon_default_broker }}" }
-    - { key: 'view.autoConnectBroker',     val: "{{ horizon_auto_connect_broker }}" }
-    - { key: 'view.allMonitors',           val: "{{ horizon_all_monitors }}" }
-    - { key: 'view.enableH264',            val: "{{ horizon_enable_h264 }}" }
-    - { key: 'view.nonInteractive',        val: "{{ horizon_non_interactive }}" }
-    - { key: 'view.shareRemovableStorage', val: "{{ horizon_share_removable_storage }}" }
-
-
 
   handlers:
     - name: Update apt cache
