@@ -16,8 +16,6 @@ set -euo pipefail
 USER_NAME="semaphore"
 USER_SHELL="/bin/bash"
 SSH_DIR="/home/${USER_NAME}/.ssh"
-PRIVATE_KEY_URL="https://raw.githubusercontent.com/m3d1/linux-scripts/refs/heads/main/Ansible/key/ed25519"  # <-- Put your HTTPS URL here (e.g., https://example.com/id_rsa)
-PRIVATE_KEY_PATH="${SSH_DIR}/id_rsa"
 SUDOERS_DROPIN="/etc/sudoers.d/99-${USER_NAME}-nopasswd"
 
 ### ---------------------------
@@ -34,17 +32,6 @@ require_cmd() {
 check_root() {
   if [[ "$(id -u)" -ne 0 ]]; then
     err "This script must be run as root (use sudo)."
-  fi
-}
-
-validate_url() {
-  local url="$1"
-  # Basic validation only
-  if [[ -z "$url" || "$url" == "REPLACE_WITH_URL" ]]; then
-    err "PRIVATE_KEY_URL is not set. Please set a valid HTTPS URL."
-  fi
-  if ! [[ "$url" =~ ^https?:// ]]; then
-    err "PRIVATE_KEY_URL must start with http:// or https://"
   fi
 }
 
@@ -74,7 +61,7 @@ else
   DOWNLOADER="curl -fsSL"
 fi
 
-validate_url "$PRIVATE_KEY_URL"
+
 
 ### ---------------------------
 ### 1) Update & install packages
@@ -145,21 +132,6 @@ mkdir -p "${SSH_DIR}"
 chmod 700 "${SSH_DIR}"
 chown -R "${USER_NAME}:${USER_NAME}" "/home/${USER_NAME}"
 
-### ---------------------------
-### 6) Download private key and set permissions
-### ---------------------------
-log "Downloading private SSH key to ${PRIVATE_KEY_PATH} ..."
-# Write to a temp file first to avoid partial writes
-TMP_KEY="$(mktemp)"
-if ! ${DOWNLOADER} "${PRIVATE_KEY_URL}" > "${TMP_KEY}"; then
-  rm -f "${TMP_KEY}"
-  err "Failed to download the private key from ${PRIVATE_KEY_URL}"
-fi
-
-# Move into place with correct ownership and permissions
-mv "${TMP_KEY}" "${PRIVATE_KEY_PATH}"
-chmod 600 "${PRIVATE_KEY_PATH}"
-chown "${USER_NAME}:${USER_NAME}" "${PRIVATE_KEY_PATH}"
 
 # (Optional) Pre-create an empty known_hosts to avoid first-connection prompts in some flows
 touch "${SSH_DIR}/known_hosts"
@@ -167,7 +139,8 @@ chmod 644 "${SSH_DIR}/known_hosts"
 chown "${USER_NAME}:${USER_NAME}" "${SSH_DIR}/known_hosts"
 
 echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config
-echo "PasswordAuthentication no" >> /etc/ssh/sshd_config
+#echo "PasswordAuthentication no" >> /etc/ssh/sshd_config
+echo "KbdInteractiveAuthentication yes" >> /etc/ssh/sshd_config
 
 ### ---------------------------
 ### 7) Final SSH health check
