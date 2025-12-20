@@ -1,11 +1,7 @@
 
 # Install Omnissa Horizon Client on Ubuntu 24.04 (amd64)
-# Hosts: agents
-# Requirements:
-#  - Run as root (become: true, become_user: root)
-#  - libgtk-3-0 >= 3.14
-#  - Remove older Horizon client before install
-#  - Create desktop shortcut for all users
+# Run: ansible-playbook -i inventory.yml install_horizon.yml
+# Hosts group: agents
 
 - name: Install Omnissa Horizon Client (Ubuntu 24.04)
   hosts: agents
@@ -14,14 +10,15 @@
   become_user: root
 
   vars:
-    # ---- Parameters ---------------------------------------------------------
+    # --- Package source
     horizon_deb_url: "https://download3.omnissa.com/software/CART26FQ4_LIN64_DEBPKG_2512/Omnissa-Horizon-Client-2512-8.17.0-20187591429.x64.deb"
     horizon_deb_local: "/var/tmp/Omnissa-Horizon-Client-2512.deb"
 
+    # --- libgtk requirement
     libgtk_pkg_name: "libgtk-3-0"
     libgtk_min_version: "3.14"
 
-    # Common runtime libs frequently required by Horizon client on Ubuntu
+    # --- Common prerequisites
     prerequisite_packages:
       - "{{ libgtk_pkg_name }}"
       - libglib2.0-0
@@ -37,30 +34,40 @@
       - libgcc-s1
       - libnss3
       - ca-certificates
-      - desktop-file-utils  # for update-desktop-database
+      - desktop-file-utils   # for update-desktop-database
 
-    # Former package names that may exist and must be removed cleanly
+    # --- Old package names to purge (VMware/Omnissa/horizon)
     legacy_pkg_patterns:
       - '^vmware-horizon-client$'
       - '^vmware-view$'
       - '^omnissa-horizon-client$'
       - '^horizon-client$'
 
-    # Desktop shortcut locations and content
+    # --- Desktop entries
     desktop_entry_path_system: "/usr/share/applications/omnissa-horizon-client.desktop"
     desktop_entry_name: "Omnissa Horizon Client.desktop"
     skel_desktop_dir: "/etc/skel/Desktop"
-    desktop_entry_content: |
+
+    # Fallback .desktop content (if vendor .desktop not found)
+    desktop_entry_content_fallback: |
       [Desktop Entry]
       Type=Application
       Name=Omnissa Horizon Client
       Comment=Client VDI Omnissa Horizon
-      Exec=/usr/bin/vmware-view
-      Icon=vmware-view
+      Exec=/usr/bin/horizon-client
+      Icon=horizon-client
       Terminal=false
       Categories=Network;RemoteAccess;
-      StartupWMClass=vmware-view
       X-GNOME-UsesNotifications=true
+
+    # --- Horizon user preferences (one per line)
+    horizon_ssl_verification_mode: '3'                     # 3 = Do not verify server identity certificate
+    horizon_default_broker: 'https://myvd.aui.ma'
+    horizon_auto_connect_broker: 'FALSE'
+    horizon_all_monitors: 'FALSE'
+    horizon_enable_h264: 'TRUE'                            
+    horizon_non_interactive: 'FALSE'
+    horizon_share_removable_storage: 'FALSE'
 
   pre_tasks:
     - name: Verify running as root (effective UID)
@@ -68,53 +75,47 @@
       register: uid_check
       changed_when: false
       failed_when: uid_check.stdout | int != 0
-      tags: [always]
 
     - name: Validate distribution is Ubuntu amd64
       ansible.builtin.assert:
         that:
-          - ansible_facts['os_family'] == 'Debian'
           - ansible_facts['distribution'] == 'Ubuntu'
           - ansible_facts['architecture'] in ['x86_64', 'amd64']
-        fail_msg: "this playbook is for Ubuntu amd64 Only."
-      tags: [always]
+        fail_msg: "this playbook work only with Ubuntu 24.04."
 
     - name: Update apt cache if older than 2h
       ansible.builtin.apt:
         update_cache: true
         cache_valid_time: 7200
-      tags: [packages]
-      notify: Update apt cache
 
-    - name: Ensure prerequisite packages present (base + desktop-file-utils)
-      ansible.builtin.apt:
-        name: "{{ prerequisite_packages }}"
-        state: present
-      tags: [packages]
-
-    
+    # ---- libgtk check (robuste, évite les chaînes vides) -------------------
     - name: Check current libgtk-3-0 version (if installed)
-      command: "dpkg-query -W -f='${Version}' {{ libgtk_pkg_name }}"
+      ansible.builtin.command: "dpkg-query -W -f='${Version}' {{ libgtk_pkg_name }}"
       register: libgtk_ver
       changed_when: false
       failed_when: false
 
     - name: Determine if libgtk is missing
-      set_fact:
+      ansible.builtin.set_fact:
         libgtk_missing: "{{ libgtk_ver.rc != 0 }}"
 
     - name: Determine if libgtk version is below minimum
-      set_fact:
-        libgtk_too_low: "{{ (libgtk_ver.stdout is defined) and (libgtk_ver.stdout | length > 0) and (libgtk_ver.stdout is version(libgtk_min_version, '<')) }}"
+      ansible.builtin.set_fact:
+        libgtk_too_low: "{{ (libgtk_ver.stdout | default('')) | length > 0 and (libgtk_ver.stdout is version(libgtk_min_version, '<')) }}"
 
-    - name: Install/upgrade libgtk-3-0 to satisfy >= {{ libgtk_min_version }}
-      apt:
+    - name: Ensure libgtk-3-0 >= {{ libgtk_min_version }}
+      ansible.builtin.apt:
         name: "{{ libgtk_pkg_name }}"
         state: present
       when: libgtk_missing or libgtk_too_low
 
+    - name: Ensure prerequisite packages present
+      ansible.builtin.apt:
+        name: "{{ prerequisite_packages }}"
+        state: present
 
   tasks:
+    # ---- Download & install -------------------------------------------------
     - name: Check URL reachability before download (HEAD)
       ansible.builtin.uri:
         url: "{{ horizon_deb_url }}"
@@ -125,7 +126,6 @@
         validate_certs: true
       register: url_head
       changed_when: false
-      tags: [download]
 
     - name: Download Omnissa Horizon Client .deb
       ansible.builtin.get_url:
@@ -133,15 +133,12 @@
         dest: "{{ horizon_deb_local }}"
         mode: '0644'
         force: no
-        # checksum intentionally omitted as per requirement
       register: deb_dl
-      tags: [download]
 
     - name: Extract package name from .deb (control field)
       ansible.builtin.command: "dpkg-deb -f {{ horizon_deb_local }} Package"
       register: horizon_pkgname
       changed_when: false
-      tags: [install]
 
     - name: List installed Horizon-like packages
       ansible.builtin.shell: |
@@ -151,7 +148,6 @@
         executable: /bin/bash
       register: legacy_installed
       changed_when: false
-      tags: [remove]
 
     - name: Purge old Horizon packages (if any)
       ansible.builtin.apt:
@@ -159,21 +155,18 @@
         state: absent
         purge: true
       when: legacy_installed.stdout_lines | length > 0
-      tags: [remove]
 
     - name: Purge package with same name as new .deb (safety)
       ansible.builtin.apt:
         name: "{{ horizon_pkgname.stdout }}"
         state: absent
         purge: true
-      tags: [remove]
 
     - name: Install Omnissa Horizon Client from .deb
       ansible.builtin.apt:
         deb: "{{ horizon_deb_local }}"
         state: present
       register: install_result
-      tags: [install]
 
     - name: Attempt to fix missing dependencies if installation failed
       ansible.builtin.shell: |
@@ -181,45 +174,70 @@
         apt-get -y -o Dpkg::Options::=--force-confold -f install
       when: install_result is failed
       register: fixdeps_result
-      changed_when: "'Setting up' in fixdeps_result.stdout or 'Setting up' in fixdeps_result.stderr"
-      tags: [install]
+      changed_when: "'Setting up' in (fixdeps_result.stdout + fixdeps_result.stderr)"
 
     - name: Re-try install after fixing dependencies (if needed)
       ansible.builtin.apt:
         deb: "{{ horizon_deb_local }}"
         state: present
       when: install_result is failed
-      tags: [install]
 
     - name: Verify installation with dpkg -s
       ansible.builtin.command: "dpkg -s {{ horizon_pkgname.stdout }}"
       register: post_install_verify
       changed_when: false
-      tags: [verify]
 
-    - name: Discover vmware-view binary path
-      ansible.builtin.shell: "command -v vmware-view || true"
-      register: vmware_view_bin
+    # ---- Discover launcher .desktop or binary ------------------------------
+    - name: List files installed by the Horizon package
+      ansible.builtin.command: "dpkg -L {{ horizon_pkgname.stdout }}"
+      register: horizon_pkg_files
       changed_when: false
-      tags: [verify]
 
-    - name: Fail if vmware-view not found
+    - name: Locate vendor .desktop file shipped by the package (if any)
+      ansible.builtin.set_fact:
+        vendor_desktop: >-
+          {{
+            (horizon_pkg_files.stdout_lines
+             | select('match', '^/usr/share/applications/.*\\.desktop$')
+             | list | first) | default('')
+          }}
+
+    - name: Locate horizon-client binary
+      ansible.builtin.shell: "command -v horizon-client || true"
+      register: horizon_bin
+      changed_when: false
+
+    - name: Ensure we have either a vendor .desktop or horizon-client binary
       ansible.builtin.assert:
         that:
-          - vmware_view_bin.stdout | length > 0
-        fail_msg: "Le binaire vmware-view n'a pas été trouvé après l'installation."
-      tags: [verify]
+          - (vendor_desktop | length > 0) or (horizon_bin.stdout | length > 0)
+        fail_msg: >-
+          No launcher detected :  .desktop found, nor 'horizon-client' found.
+          Please check your .deb file and try again.
 
-    - name: Create system desktop entry
+    # ---- Install desktop entry (prefer vendor .desktop) ---------------------
+    - name: Install system desktop entry from vendor .desktop
       ansible.builtin.copy:
+        src: "{{ vendor_desktop }}"
+        remote_src: true
         dest: "{{ desktop_entry_path_system }}"
-        content: "{{ desktop_entry_content }}"
         owner: root
         group: root
         mode: '0644'
+      when: vendor_desktop | length > 0
       notify: Update desktop database
-      tags: [shortcut]
 
+    - name: Generate minimal system desktop entry (fallback to horizon-client)
+      ansible.builtin.copy:
+        dest: "{{ desktop_entry_path_system }}"
+        owner: root
+        group: root
+        mode: '0644'
+        content: "{{ desktop_entry_content_fallback }}"
+      when: vendor_desktop | length == 0
+      notify: Update desktop database
+
+    # ---- Seed shortcut for new users ---------------------------------------
     - name: Ensure /etc/skel/Desktop exists
       ansible.builtin.file:
         path: "{{ skel_desktop_dir }}"
@@ -227,7 +245,6 @@
         owner: root
         group: root
         mode: '0755'
-      tags: [shortcut]
 
     - name: Seed shortcut for future users via /etc/skel
       ansible.builtin.copy:
@@ -237,8 +254,8 @@
         owner: root
         group: root
         mode: '0644'
-      tags: [shortcut]
 
+    # ---- Copy shortcut to existing users' Desktop if missing ---------------
     - name: Copy shortcut to existing users' Desktop if missing
       ansible.builtin.shell: |
         set -e
@@ -252,13 +269,92 @@
       args:
         executable: /bin/bash
       changed_when: false
-      tags: [shortcut]
+
+    # ===================== USER PREFERENCES =====================
+
+    # ---- Seed preferences for new users (via /etc/skel) --------------------
+    - name: Ensure /etc/skel/.omnissa exists
+      ansible.builtin.file:
+        path: /etc/skel/.omnissa
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Seed default horizon-preferences in /etc/skel
+      ansible.builtin.copy:
+        dest: /etc/skel/.omnissa/horizon-preferences
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          view.sslVerificationMode = '{{ horizon_ssl_verification_mode }}'
+          view.defaultBroker = '{{ horizon_default_broker }}'
+          view.autoConnectBroker = '{{ horizon_auto_connect_broker }}'
+          view.allMonitors = '{{ horizon_all_monitors }}'
+          view.enableH264 = '{{ horizon_enable_h264 }}'
+          view.nonInteractive = '{{ horizon_non_interactive }}'
+          view.shareRemovableStorage = '{{ horizon_share_removable_storage }}'
+
+    # ---- Apply preferences to EXISTING users --------------------------------
+    - name: Detect existing user home directories (UID >= 1000)
+      ansible.builtin.shell: |
+        awk -F: '$3>=1000 && $1!="nobody" {print $6}' /etc/passwd | sort -u
+      register: user_homes
+      changed_when: false
+
+    - name: Stat each home to capture owner/group
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop: "{{ user_homes.stdout_lines }}"
+      register: homes_stat
+
+    - name: Ensure ~/.omnissa exists for each user
+      ansible.builtin.file:
+        path: "{{ item.stat.path }}/.omnissa"
+        state: directory
+        owner: "{{ item.stat.pw_name | default('root') }}"
+        group: "{{ item.stat.gr_name | default('root') }}"
+        mode: '0755'
+      loop: "{{ homes_stat.results }}"
+      when: item.stat.exists | default(false)
+
+    - name: Ensure horizon-preferences file exists for each user
+      ansible.builtin.file:
+        path: "{{ item.stat.path }}/.omnissa/horizon-preferences"
+        state: touch
+        owner: "{{ item.stat.pw_name | default('root') }}"
+        group: "{{ item.stat.gr_name | default('root') }}"
+        mode: '0644'
+      loop: "{{ homes_stat.results }}"
+      when: item.stat.exists | default(false)
+
+    - name: Build preferences list (as dicts) to apply
+      ansible.builtin.set_fact:
+        horizon_prefs:
+          - { key: 'view.sslVerificationMode',    val: "{{ horizon_ssl_verification_mode }}" }
+          - { key: 'view.defaultBroker',         val: "{{ horizon_default_broker }}" }
+          - { key: 'view.autoConnectBroker',     val: "{{ horizon_auto_connect_broker }}" }
+          - { key: 'view.allMonitors',           val: "{{ horizon_all_monitors }}" }
+          - { key: 'view.enableH264',            val: "{{ horizon_enable_h264 }}" }
+          - { key: 'view.nonInteractive',        val: "{{ horizon_non_interactive }}" }
+          - { key: 'view.shareRemovableStorage', val: "{{ horizon_share_removable_storage }}" }
+
+    - name: Apply Horizon preferences (idempotent) to each user
+      ansible.builtin.lineinfile:
+        path: "{{ item.0.stat.path }}/.omnissa/horizon-preferences"
+        regexp: "^{{ item.1.key | regex_escape }}\\s*=.*$"
+        line: "{{ item.1.key }} = '{{ item.1.val }}'"
+        create: true
+        owner: "{{ item.0.stat.pw_name | default('root') }}"
+        group: "{{ item.0.stat.gr_name | default('root') }}"
+        mode: '0644'
+        backrefs: false
+      loop: "{{ homes_stat.results | selectattr('stat.exists','defined') | selectattr('stat.exists') | list | subelements('ansible_facts.horizon_prefs', skip_missing=True) }}"
+      vars:
+        ansible_facts:
+          horizon_prefs: "{{ horizon_prefs }}"
 
   handlers:
-    - name: Update apt cache
-      ansible.builtin.apt:
-        update_cache: true
-
     - name: Update desktop database
-      ansible.builtin.shell: "update-desktop-database || true"
-      changed_when:
+      ansible.b      ansible.builtin.shell: "update-desktop-database || true"
