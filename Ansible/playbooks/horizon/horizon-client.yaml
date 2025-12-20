@@ -358,14 +358,6 @@
     
 # --- Préférences pour l'utilisateur ubuntu -------------------------------
 
-- name: Ensure /home/ubuntu/.omnissa exists
-  ansible.builtin.file:
-    path: /home/ubuntu/.omnissa
-    state: directory
-    owner: ubuntu
-    group: ubuntu
-    mode: '0755'
-
 - name: Apply Horizon preferences (idempotent) for user ubuntu
   ansible.builtin.lineinfile:
     path: /home/ubuntu/.omnissa/horizon-preferences
