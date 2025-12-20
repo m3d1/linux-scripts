@@ -86,26 +86,26 @@
       tags: [packages]
       notify: Update apt cache
 
-    - name: Ensure prerequisite packages present (base + desktop-file-utils)
-      ansible.builtin.apt:
-        name: "{{ prerequisite_packages }}"
-        state: present
-      tags: [packages]
+    # - name: Ensure prerequisite packages present (base + desktop-file-utils)
+    #   ansible.builtin.apt:
+    #     name: "{{ prerequisite_packages }}"
+    #     state: present
+    #   tags: [packages]
 
     
-    - name: Check current libgtk-3-0 version (if installed)
-      command: "dpkg-query -W -f='${Version}' {{ libgtk_pkg_name }}"
-      register: libgtk_ver
-      changed_when: false
-      failed_when: false
+    # - name: Check current libgtk-3-0 version (if installed)
+    #   command: "dpkg-query -W -f='${Version}' {{ libgtk_pkg_name }}"
+    #   register: libgtk_ver
+    #   changed_when: false
+    #   failed_when: false
 
-    - name: Determine if libgtk is missing
-      set_fact:
-        libgtk_missing: "{{ libgtk_ver.rc != 0 }}"
+    # - name: Determine if libgtk is missing
+    #   set_fact:
+    #     libgtk_missing: "{{ libgtk_ver.rc != 0 }}"
 
-    - name: Determine if libgtk version is below minimum
-      set_fact:
-        libgtk_too_low: "{{ (libgtk_ver.stdout is defined) and (libgtk_ver.stdout | length > 0) and (libgtk_ver.stdout is version(libgtk_min_version, '<')) }}"
+    # - name: Determine if libgtk version is below minimum
+    #   set_fact:
+    #     libgtk_too_low: "{{ (libgtk_ver.stdout is defined) and (libgtk_ver.stdout | length > 0) and (libgtk_ver.stdout is version(libgtk_min_version, '<')) }}"
 
     - name: Install/upgrade libgtk-3-0 to satisfy >= {{ libgtk_min_version }}
       apt:
