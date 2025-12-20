@@ -68,6 +68,7 @@
     horizon_enable_h264: 'TRUE'                            
     horizon_non_interactive: 'FALSE'
     horizon_share_removable_storage: 'FALSE'
+    horizon_enable_datasharing: 'FALSE'
 
   pre_tasks:
     - name: Verify running as root (effective UID)
@@ -253,7 +254,7 @@
         remote_src: true
         owner: root
         group: root
-        mode: '0644'
+        mode: '0755'
 
     # ---- Copy shortcut to existing users' Desktop if missing ---------------
     - name: Copy shortcut to existing users' Desktop if missing
@@ -268,6 +269,7 @@
         done
       args:
         executable: /bin/bash
+      mode: '0775'
       changed_when: false
 
     # ===================== USER PREFERENCES =====================
@@ -295,6 +297,7 @@
           view.enableH264 = '{{ horizon_enable_h264 }}'
           view.nonInteractive = '{{ horizon_non_interactive }}'
           view.shareRemovableStorage = '{{ horizon_share_removable_storage }}'
+          view.enableDataSharing = '{{ horizon_enable_datasharing }}'
 
     # ---- Apply preferences to EXISTING users --------------------------------
     - name: Detect existing user home directories (UID >= 1000)
@@ -343,6 +346,7 @@
         - { key: 'view.enableH264',            val: "{{ horizon_enable_h264 }}" }
         - { key: 'view.nonInteractive',        val: "{{ horizon_non_interactive }}" }
         - { key: 'view.shareRemovableStorage', val: "{{ horizon_share_removable_storage }}" }
+        - { key: 'view.enableDataSharing',     val: "{{ horizon_enable_datasharing }}" }
 
     # - name: Ensure horizon-preferences file exists for each user
     #   ansible.builtin.file:
