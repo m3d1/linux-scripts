@@ -366,14 +366,6 @@
     group: ubuntu
     mode: '0755'
 
-- name: Ensure horizon-preferences exists
-  ansible.builtin.file:
-    path: /home/ubuntu/.omnissa/horizon-preferences
-    state: touch
-    owner: ubuntu
-    group: ubuntu
-    mode: '0644'
-
 - name: Apply Horizon preferences (idempotent) for user ubuntu
   ansible.builtin.lineinfile:
     path: /home/ubuntu/.omnissa/horizon-preferences
