@@ -356,5 +356,11 @@
           horizon_prefs: "{{ horizon_prefs }}"
 
   handlers:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+
     - name: Update desktop database
-      ansible.b      ansible.builtin.shell: "update-desktop-database || true"
+      ansible.builtin.shell: "update-desktop-database || true"
+      changed_when:
+
