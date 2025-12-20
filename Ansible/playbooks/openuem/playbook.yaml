@@ -19,7 +19,7 @@
       ansible.builtin.debconf:
         name: openuem-agent
         question: openuem-agent/nats-server
-        value: "server.example.com:4433"
+        value: "uem.thinkit.local:4433"
         vtype: text
 
     - name: Set to generate locales
