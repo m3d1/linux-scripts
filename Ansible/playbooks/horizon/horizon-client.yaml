@@ -366,7 +366,7 @@
     group: ubuntu
     mode: '0755'
 
-- name: Ensure /home/ubuntu/.omnissa/horizon-preferences exists
+- name: Ensure horizon-preferences exists
   ansible.builtin.file:
     path: /home/ubuntu/.omnissa/horizon-preferences
     state: touch
