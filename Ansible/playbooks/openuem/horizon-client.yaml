@@ -1,0 +1,264 @@
+
+# Install Omnissa Horizon Client on Ubuntu 24.04 (amd64)
+# Hosts: agents
+# Requirements:
+#  - Run as root (become: true, become_user: root)
+#  - libgtk-3-0 >= 3.14
+#  - Remove older Horizon client before install
+#  - Create desktop shortcut for all users
+
+- name: Install Omnissa Horizon Client (Ubuntu 24.04)
+  hosts: agents
+  gather_facts: true
+  become: true
+  become_user: root
+
+  vars:
+    # ---- Parameters ---------------------------------------------------------
+    horizon_deb_url: "https://download3.omnissa.com/software/CART26FQ4_LIN64_DEBPKG_2512/Omnissa-Horizon-Client-2512-8.17.0-20187591429.x64.deb"
+    horizon_deb_local: "/var/tmp/Omnissa-Horizon-Client-2512.deb"
+
+    libgtk_pkg_name: "libgtk-3-0"
+    libgtk_min_version: "3.14"
+
+    # Common runtime libs frequently required by Horizon client on Ubuntu
+    prerequisite_packages:
+      - "{{ libgtk_pkg_name }}"
+      - libglib2.0-0
+      - libx11-6
+      - libxtst6
+      - libxi6
+      - libxrandr2
+      - libxfixes3
+      - libxrender1
+      - libatk1.0-0
+      - libc6
+      - libstdc++6
+      - libgcc-s1
+      - libnss3
+      - ca-certificates
+      - desktop-file-utils  # for update-desktop-database
+
+    # Former package names that may exist and must be removed cleanly
+    legacy_pkg_patterns:
+      - '^vmware-horizon-client$'
+      - '^vmware-view$'
+      - '^omnissa-horizon-client$'
+      - '^horizon-client$'
+
+    # Desktop shortcut locations and content
+    desktop_entry_path_system: "/usr/share/applications/omnissa-horizon-client.desktop"
+    desktop_entry_name: "Omnissa Horizon Client.desktop"
+    skel_desktop_dir: "/etc/skel/Desktop"
+    desktop_entry_content: |
+      [Desktop Entry]
+      Type=Application
+      Name=Omnissa Horizon Client
+      Comment=Client VDI Omnissa Horizon
+      Exec=/usr/bin/vmware-view
+      Icon=vmware-view
+      Terminal=false
+      Categories=Network;RemoteAccess;
+      StartupWMClass=vmware-view
+      X-GNOME-UsesNotifications=true
+
+  pre_tasks:
+    - name: Verify running as root (effective UID)
+      ansible.builtin.command: id -u
+      register: uid_check
+      changed_when: false
+      failed_when: uid_check.stdout | int != 0
+      tags: [always]
+
+    - name: Validate distribution is Ubuntu amd64
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['os_family'] == 'Debian'
+          - ansible_facts['distribution'] == 'Ubuntu'
+          - ansible_facts['architecture'] in ['x86_64', 'amd64']
+        fail_msg: "this playbook is for Ubuntu amd64 Only."
+      tags: [always]
+
+    - name: Update apt cache if older than 2h
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 7200
+      tags: [packages]
+      notify: Update apt cache
+
+    - name: Ensure prerequisite packages present (base + desktop-file-utils)
+      ansible.builtin.apt:
+        name: "{{ prerequisite_packages }}"
+        state: present
+      tags: [packages]
+
+    
+    - name: Check current libgtk-3-0 version (if installed)
+      command: "dpkg-query -W -f='${Version}' {{ libgtk_pkg_name }}"
+      register: libgtk_ver
+      changed_when: false
+      failed_when: false
+
+    - name: Determine if libgtk is missing
+      set_fact:
+        libgtk_missing: "{{ libgtk_ver.rc != 0 }}"
+
+    - name: Determine if libgtk version is below minimum
+      set_fact:
+        libgtk_too_low: "{{ (libgtk_ver.stdout is defined) and (libgtk_ver.stdout | length > 0) and (libgtk_ver.stdout is version(libgtk_min_version, '<')) }}"
+
+    - name: Install/upgrade libgtk-3-0 to satisfy >= {{ libgtk_min_version }}
+      apt:
+        name: "{{ libgtk_pkg_name }}"
+        state: present
+      when: libgtk_missing or libgtk_too_low
+
+
+  tasks:
+    - name: Check URL reachability before download (HEAD)
+      ansible.builtin.uri:
+        url: "{{ horizon_deb_url }}"
+        method: HEAD
+        status_code: 200
+        return_content: false
+        follow_redirects: safe
+        validate_certs: true
+      register: url_head
+      changed_when: false
+      tags: [download]
+
+    - name: Download Omnissa Horizon Client .deb
+      ansible.builtin.get_url:
+        url: "{{ horizon_deb_url }}"
+        dest: "{{ horizon_deb_local }}"
+        mode: '0644'
+        force: no
+        # checksum intentionally omitted as per requirement
+      register: deb_dl
+      tags: [download]
+
+    - name: Extract package name from .deb (control field)
+      ansible.builtin.command: "dpkg-deb -f {{ horizon_deb_local }} Package"
+      register: horizon_pkgname
+      changed_when: false
+      tags: [install]
+
+    - name: List installed Horizon-like packages
+      ansible.builtin.shell: |
+        set -e
+        dpkg -l | awk '/^ii/ {print $2}' | egrep -i '{{ legacy_pkg_patterns | join("|") }}' || true
+      args:
+        executable: /bin/bash
+      register: legacy_installed
+      changed_when: false
+      tags: [remove]
+
+    - name: Purge old Horizon packages (if any)
+      ansible.builtin.apt:
+        name: "{{ legacy_installed.stdout_lines }}"
+        state: absent
+        purge: true
+      when: legacy_installed.stdout_lines | length > 0
+      tags: [remove]
+
+    - name: Purge package with same name as new .deb (safety)
+      ansible.builtin.apt:
+        name: "{{ horizon_pkgname.stdout }}"
+        state: absent
+        purge: true
+      tags: [remove]
+
+    - name: Install Omnissa Horizon Client from .deb
+      ansible.builtin.apt:
+        deb: "{{ horizon_deb_local }}"
+        state: present
+      register: install_result
+      tags: [install]
+
+    - name: Attempt to fix missing dependencies if installation failed
+      ansible.builtin.shell: |
+        set -e
+        apt-get -y -o Dpkg::Options::=--force-confold -f install
+      when: install_result is failed
+      register: fixdeps_result
+      changed_when: "'Setting up' in fixdeps_result.stdout or 'Setting up' in fixdeps_result.stderr"
+      tags: [install]
+
+    - name: Re-try install after fixing dependencies (if needed)
+      ansible.builtin.apt:
+        deb: "{{ horizon_deb_local }}"
+        state: present
+      when: install_result is failed
+      tags: [install]
+
+    - name: Verify installation with dpkg -s
+      ansible.builtin.command: "dpkg -s {{ horizon_pkgname.stdout }}"
+      register: post_install_verify
+      changed_when: false
+      tags: [verify]
+
+    - name: Discover vmware-view binary path
+      ansible.builtin.shell: "command -v vmware-view || true"
+      register: vmware_view_bin
+      changed_when: false
+      tags: [verify]
+
+    - name: Fail if vmware-view not found
+      ansible.builtin.assert:
+        that:
+          - vmware_view_bin.stdout | length > 0
+        fail_msg: "Le binaire vmware-view n'a pas été trouvé après l'installation."
+      tags: [verify]
+
+    - name: Create system desktop entry
+      ansible.builtin.copy:
+        dest: "{{ desktop_entry_path_system }}"
+        content: "{{ desktop_entry_content }}"
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Update desktop database
+      tags: [shortcut]
+
+    - name: Ensure /etc/skel/Desktop exists
+      ansible.builtin.file:
+        path: "{{ skel_desktop_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      tags: [shortcut]
+
+    - name: Seed shortcut for future users via /etc/skel
+      ansible.builtin.copy:
+        dest: "{{ skel_desktop_dir }}/{{ desktop_entry_name }}"
+        src: "{{ desktop_entry_path_system }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: '0644'
+      tags: [shortcut]
+
+    - name: Copy shortcut to existing users' Desktop if missing
+      ansible.builtin.shell: |
+        set -e
+        for d in /home/*; do
+          [ -d "$d/Desktop" ] || continue
+          if [ ! -f "$d/Desktop/{{ desktop_entry_name }}" ]; then
+            cp "{{ desktop_entry_path_system }}" "$d/Desktop/{{ desktop_entry_name }}"
+            chown "$(stat -c '%U:%G' "$d")" "$d/Desktop/{{ desktop_entry_name }}" || true
+          fi
+        done
+      args:
+        executable: /bin/bash
+      changed_when: false
+      tags: [shortcut]
+
+  handlers:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Update desktop database
+      ansible.builtin.shell: "update-desktop-database || true"
+      changed_when:
