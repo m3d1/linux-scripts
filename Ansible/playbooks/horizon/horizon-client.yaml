@@ -92,19 +92,27 @@
         state: present
       tags: [packages]
 
+    
     - name: Check current libgtk-3-0 version (if installed)
-      ansible.builtin.command: "dpkg-query -W -f='${Version}' {{ libgtk_pkg_name }}"
+      command: "dpkg-query -W -f='${Version}' {{ libgtk_pkg_name }}"
       register: libgtk_ver
       changed_when: false
       failed_when: false
-      tags: [packages]
 
-    - name: Upgrade libgtk-3-0 if below minimum ({{ libgtk_min_version }})
-      ansible.builtin.apt:
+    - name: Determine if libgtk is missing
+      set_fact:
+        libgtk_missing: "{{ libgtk_ver.rc != 0 }}"
+
+    - name: Determine if libgtk version is below minimum
+      set_fact:
+        libgtk_too_low: "{{ (libgtk_ver.stdout is defined) and (libgtk_ver.stdout | length > 0) and (libgtk_ver.stdout is version(libgtk_min_version, '<')) }}"
+
+    - name: Install/upgrade libgtk-3-0 to satisfy >= {{ libgtk_min_version }}
+      apt:
         name: "{{ libgtk_pkg_name }}"
-        state: latest
-      when: libgtk_ver.rc != 0 or (libgtk_ver.stdout is version(libgtk_min_version, '<'))
-      tags: [packages]
+        state: present
+      when: libgtk_missing or libgtk_too_low
+
 
   tasks:
     - name: Check URL reachability before download (HEAD)
