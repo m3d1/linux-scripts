@@ -1,0 +1,86 @@
+- name: OpenUEM Agent installation
+  hosts: agents
+  become: yes
+  become_user: root
+  tasks:
+    - name: Add OpenUEM repository into sources list using specified filename
+      block:
+        - name: openuem |no apt key
+          ansible.builtin.get_url:
+            url: https://apt.openuem.eu/pgp-key.public
+            dest: /usr/share/keyrings/openuem.asc
+
+        - name: openuem | apt source
+          ansible.builtin.apt_repository:
+            repo: "deb [arch=amd64 signed-by=/usr/share/keyrings/openuem.asc] https://apt.openuem.eu stable main"
+            state: present
+
+    - name: Set the OpenUEM NATS server url
+      ansible.builtin.debconf:
+        name: openuem-agent
+        question: openuem-agent/nats-server
+        value: "server.example.com:4433"
+        vtype: text
+
+    - name: Set to generate locales
+      ansible.builtin.debconf:
+        name: openuem-agent
+        question: openuem-agent/sftp-port
+        value: "2022"
+        vtype: text
+
+    - name: Agent VNC proxy port
+      ansible.builtin.debconf:
+        name: openuem-agent
+        question: openuem-agent/vnc-proxy-port
+        value: "1433"
+        vtype: text
+
+    - name: Install openuem-agent
+      ansible.builtin.apt:
+        name: openuem-agent
+        state: present
+
+    - name: Copy CA cer with owner and permissions
+      ansible.builtin.copy:
+        src: certificates/ca.cer
+        dest: /etc/openuem-agent/certificates/ca.cer
+        owner: openuem-agent
+        group: openuem-agent
+        mode: "0660"
+
+    - name: Copy Agents cer with owner and permissions
+      ansible.builtin.copy:
+        src: certificates/agent.cer
+        dest: /etc/openuem-agent/certificates/agent.cer
+        owner: openuem-agent
+        group: openuem-agent
+        mode: "0660"
+
+    - name: Copy Agents private key with owner and permissions
+      ansible.builtin.copy:
+        src: certificates/agent.key
+        dest: /etc/openuem-agent/certificates/agent.key
+        owner: openuem-agent
+        group: openuem-agent
+        mode: "0660"
+
+    - name: Copy SFTP cer with owner and permissions
+      ansible.builtin.copy:
+        src: certificates/sftp.cer
+        dest: /etc/openuem-agent/certificates/sftp.cer
+        owner: openuem-agent
+        group: openuem-agent
+        mode: "0660"
+
+    - name: Restart openuem-agent service
+      ansible.builtin.systemd_service:
+        state: restarted
+        daemon_reload: true
+        name: openuem-agent
+
+    - name: Restart openuem-agent-updater service
+      ansible.builtin.systemd_service:
+        state: restarted
+        daemon_reload: true
+        name: openuem-agent-updater
