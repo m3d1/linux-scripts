@@ -257,20 +257,48 @@
         mode: '0755'
 
     # ---- Copy shortcut to existing users' Desktop if missing ---------------
-    - name: Copy shortcut to existing users' Desktop if missing
-      ansible.builtin.shell: |
-        set -e
-        for d in /home/*; do
-          [ -d "$d/Desktop" ] || continue
-          if [ ! -f "$d/Desktop/{{ desktop_entry_name }}" ]; then
-            cp "{{ desktop_entry_path_system }}" "$d/Desktop/{{ desktop_entry_name }}"
-            chown "$(stat -c '%U:%G' "$d")" "$d/Desktop/{{ desktop_entry_name }}" || true
-          fi
-        done
+    # - name: Copy shortcut to existing users' Desktop if missing
+    #   ansible.builtin.shell: |
+    #     set -e
+    #     for d in /home/*; do
+    #       [ -d "$d/Desktop" ] || continue
+    #       if [ ! -f "$d/Desktop/{{ desktop_entry_name }}" ]; then
+    #         cp "{{ desktop_entry_path_system }}" "$d/Desktop/{{ desktop_entry_name }}"
+    #         chown "$(stat -c '%U:%G' "$d")" "$d/Desktop/{{ desktop_entry_name }}" || true
+    #       fi
+    #     done
+    #   args:
+    #     executable: /bin/bash
+    #   mode: '0775'
+    #   changed_when: false
+    
+    - name: Ensure /home/ubuntu/Desktop exists
+      ansible.builtin.file:
+        path: /home/ubuntu/Desktop
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: Copy shortcut to ubuntu's Desktop with executable bit (+ trust)
+      ansible.builtin.copy:
+        src: "{{ desktop_entry_path_system }}"
+        dest: "/home/ubuntu/Desktop/{{ desktop_entry_name }}"
+        remote_src: true
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'  # critical: executable so Nautilus allows launching
+      notify: Update desktop database
+
+    - name: Mark desktop file as trusted (Nautilus metadata)
+      ansible.builtin.shell: >
+        sudo -u ubuntu gio set
+        "/home/ubuntu/Desktop/{{ desktop_entry_name }}"
+        metadata::trusted true
       args:
         executable: /bin/bash
-      mode: '0775'
       changed_when: false
+      failed_when: false
 
     # ===================== USER PREFERENCES =====================
 
