@@ -1,0 +1,83 @@
+
+# Install Oracle Client on Ubuntu 24.04 (amd64)
+# Hosts group: agents
+- name: Install Oracle SGD client via RPM using alien
+  hosts: agents
+  become: true
+  gather_facts: true
+
+  vars:
+    target_user: "ubuntu"
+    download_dir: "/home/{{ target_user }}/Downloads"
+    sgd_rpm_url: "https://published.desktops.eu-frankfurt-1.oci.oraclecloud.com/client/client_packages/sgdclient-el7.x86_64.rpm"
+    rpm_filename: "{{ sgd_rpm_url | basename }}"
+    installed_marker_path: "/usr/bin/ttconnect" # <— Adjust to a real path/binary after first install
+
+  pre_tasks:
+    - name: Ensure OS is Debian/Ubuntu
+      assert:
+        that:
+          - ansible_facts['os_family'] == 'Debian'
+        fail_msg: "This playbook targets Ubuntu/Debian only."
+        success_msg: "Debian/Ubuntu system detected."
+
+    - name: Ensure target user exists (resolve HOME)
+      user:
+        name: "{{ target_user }}"
+      register: target_user_data
+
+  tasks:
+    - name: Create the download directory
+      file:
+        path: "{{ download_dir }}"
+        state: directory
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
+        mode: "0755"
+
+    - name: Update APT cache
+      apt:
+        update_cache: true
+      when: ansible_facts['pkg_mgr'] == 'apt'
+
+    - name: Install alien and libmotif-dev
+      apt:
+        name:
+          - alien
+          - libmotif-dev
+        state: present
+
+    - name: Download the SGD client RPM
+      get_url:
+        url: "{{ sgd_rpm_url }}"
+        dest: "{{ download_dir }}/{{ rpm_filename }}"
+        mode: "0644"
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
+        # checksum: "sha256:..."   # (Optional) add if you have the RPM checksum
+      register: download_result
+
+    - name: Check if SGD client appears installed (marker path)
+      stat:
+        path: "{{ installed_marker_path }}"
+      register: sgd_installed
+
+    - name: Install SGD client via alien (with scripts)
+      command:
+        cmd: "alien -i --scripts {{ download_dir }}/{{ rpm_filename }}"
+      register: alien_install
+      changed_when: true
+      when: not sgd_installed.stat.exists
+
+    - name: (Optional) Re-check marker after installation
+      stat:
+        path: "{{ installed_marker_path }}"
+      register: sgd_installed_after
+      when: not sgd_installed.stat.exists
+
+    - name: Summary
+      debug:
+        msg:
+          - "Downloaded file: {{ download_dir }}/{{ rpm_filename }}"
+          - "Installation executed: {{ (not sgd_installed.stat.exists) | ternary('yes', 'no') }}"
+          - "Marker present after install: {{ (sgd_installed_after.stat.exists if (sgd_installed_after is defined) else sgd_installed.stat.exists) | ternary('yes', 'no
