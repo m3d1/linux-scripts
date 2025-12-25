@@ -80,4 +80,4 @@
         msg:
           - "Downloaded file: {{ download_dir }}/{{ rpm_filename }}"
           - "Installation executed: {{ (not sgd_installed.stat.exists) | ternary('yes', 'no') }}"
-          - "Marker present after install: {{ (sgd_installed_after.stat.exists if (sgd_installed_after is defined) else sgd_installed.stat.exists) | ternary('yes', 'no
+          
