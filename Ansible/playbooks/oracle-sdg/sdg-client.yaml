@@ -4,10 +4,11 @@
 - name: Install Oracle SGD client via RPM using alien
   hosts: agents
   become: true
+  become_user: root
   gather_facts: true
 
   vars:
-    target_user: "ubuntu"
+    target_user: "aui"
     download_dir: "/home/{{ target_user }}/Downloads"
     sgd_rpm_url: "https://published.desktops.eu-frankfurt-1.oci.oraclecloud.com/client/client_packages/sgdclient-el7.x86_64.rpm"
     rpm_filename: "{{ sgd_rpm_url | basename }}"
