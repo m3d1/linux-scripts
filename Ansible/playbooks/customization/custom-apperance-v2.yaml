@@ -1,0 +1,111 @@
+
+---
+- name: Apply GNOME olive accent and wallpaper for all users
+  hosts: localhost
+  become: true
+  become_user: root
+  vars:
+    image_url: "https://ledesk.ma/wp-content/uploads/2025/01/WhatsApp-Image-2025-01-28-at-14.49.14-900x600.jpeg"
+    appearance_mode: "auto"
+    display_value: ":0"  # Adjust if your GNOME session uses a different DISPLAY
+    wall_subdir: ".local/share/backgrounds"
+
+  tasks:
+    - name: Get list of all non-system users with home directories
+      command: awk -F: '$3 >= 1000 && $6 ~ /^\/home\// {print $1}' /etc/passwd
+      register: user_list
+      changed_when: false
+
+    - name: Ensure required packages are installed
+      apt:
+        name:
+          - wget
+          - curl
+          - dconf-cli
+          - gsettings-desktop-schemas
+          - yaru-theme-gnome-shell
+          - yaru-theme-gtk
+          - yaru-theme-icon
+        state: present
+        update_cache: yes
+
+    - name: Loop through all users
+      loop: "{{ user_list.stdout_lines }}"
+      vars:
+        target_user: "{{ item }}"
+        target_uid: "{{ lookup('ansible.builtin.pipe', 'id -u ' ~ target_user) | int }}"
+        wall_dir: "/home/{{ target_user }}/{{ wall_subdir }}"
+        filename: "{{ (image_url | regex_search('[^/\\?]+(?=\\?|$)')) | default('wallpaper-' ~ ansible_date_time.epoch ~ '.jpg') }}"
+        target_path: "{{ wall_dir }}/{{ filename }}"
+        dbus_address: "unix:path=/run/user/{{ target_uid }}/bus"
+      block:
+        - name: Ensure wallpaper directory exists for {{ target_user }}
+          file:
+            path: "{{ wall_dir }}"
+            state: directory
+            owner: "{{ target_user }}"
+            group: "{{ target_user }}"
+            mode: '0755'
+
+        - name: Download wallpaper for {{ target_user }}
+          get_url:
+            url: "{{ image_url }}"
+            dest: "{{ target_path }}"
+            mode: '0644'
+          register: get_wall_result
+
+        - name: Fix ownership on downloaded file for {{ target_user }}
+          file:
+            path: "{{ target_path }}"
+            state: file
+            owner: "{{ target_user }}"
+            group: "{{ target_user }}"
+            mode: '0644'
+
+        - name: Apply wallpaper for {{ target_user }}
+          command: >
+            gsettings set org.gnome.desktop.background picture-uri "file://{{ target_path }}"
+          become: false
+          become_user: "{{ target_user }}"
+          environment:
+            DBUS_SESSION_BUS_ADDRESS: "{{ dbus_address }}"
+            DISPLAY: "{{ display_value }}"
+          ignore_errors: true
+
+        - name: Apply wallpaper for dark mode for {{ target_user }}
+          command: >
+            gsettings set org.gnome.desktop.background picture-uri-dark "file://{{ target_path }}"
+          become: false
+          become_user: "{{ target_user }}"
+          environment:
+            DBUS_SESSION_BUS_ADDRESS: "{{ dbus_address }}"
+            DISPLAY: "{{ display_value }}"
+          ignore_errors: true
+
+        - name: Set appearance mode for {{ target_user }}
+          command: >
+            gsettings set org.gnome.desktop.interface color-scheme
+            "{{ 'prefer-dark' if appearance_mode == 'dark' else ('prefer-light' if appearance_mode == 'light' else 'default') }}"
+          become: false
+          become_user: "{{ target_user }}"
+          environment:
+            DBUS_SESSION_BUS_ADDRESS: "{{ dbus_address }}"
+            DISPLAY: "{{ display_value }}"
+          ignore_errors: true
+
+        - name: Try GNOME accent color for {{ target_user }}
+          command: gsettings set org.gnome.desktop.interface accent-color "olive"
+          become: false
+          become_user: "{{ target_user }}"
+          environment:
+            DBUS_SESSION_BUS_ADDRESS: "{{ dbus_address }}"
+            DISPLAY: "{{ display_value }}"
+          ignore_errors: true
+
+        - name: Fallback to Yaru olive theme for {{ target_user }}
+          command: gsettings set org.gnome.desktop.interface gtk-theme "Yaru-olive"
+          become: false
+                   become_user: "{{ target_user }}"
+          environment:
+            DBUS_SESSION_BUS_ADDRESS: "{{ dbus_address }}"
+            DISPLAY: "{{ display_value }}"
