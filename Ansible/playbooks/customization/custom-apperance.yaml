@@ -7,7 +7,7 @@
   vars:
     image_url: "https://ledesk.ma/wp-content/uploads/2025/01/WhatsApp-Image-2025-01-28-at-14.49.14-900x600.jpeg"   # Replace with your URL
     appearance_mode: "auto"                          # Options: auto, dark, light
-    wall_dir: "{{ ansible_env.HOME }}/.local/share/backgrounds"
+    wall_dir: "/home/ubuntu/.local/share/backgrounds"
     filename: "{{ image_url | regex_replace('^.*\\/', '') | default('wallpaper-' ~ ansible_date_time.iso8601 ~ '.jpg') }}"
     target_path: "{{ wall_dir }}/{{ filename }}"
 
