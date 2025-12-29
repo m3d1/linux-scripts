@@ -1,7 +1,7 @@
 
 ---
 - name: Apply GNOME olive accent and wallpaper for all users
-  hosts: localhost
+  hosts: agents
   become: true
   become_user: root
   vars:
