@@ -1,5 +1,5 @@
-- name: Set system-wide wallpaper for all users
-  hosts: agents
+- name: Force system-wide wallpaper from URL
+  hosts: all
   become: yes
   become_user: root
   vars:
@@ -7,7 +7,7 @@
     wallpaper_dest: "/usr/share/backgrounds/custom-wallpaper.jpg"
 
   tasks:
-    - name: Ensure the backgrounds directory exists
+    - name: Ensure backgrounds directory exists
       ansible.builtin.file:
         path: /usr/share/backgrounds
         state: directory
@@ -19,17 +19,50 @@
         dest: "{{ wallpaper_dest }}"
         mode: '0644'
 
-    - name: Create GSettings override file for all users
+    - name: Create dconf profile directory
+      ansible.builtin.file:
+        path: /etc/dconf/profile
+        state: directory
+        mode: '0755'
+
+    - name: Set dconf user profile
       ansible.builtin.copy:
-        dest: /usr/share/glib-2.0/schemas/99_custom_wallpaper.gschema.override
+        dest: /etc/dconf/profile/user
         content: |
-          [org.gnome.desktop.background]
+          user-db:user
+          system-db:local
+        mode: '0644'
+
+    - name: Ensure dconf local database directories exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - /etc/dconf/db/local.d
+        - /etc/dconf/db/local.d/locks
+
+    - name: Define mandatory wallpaper settings
+      ansible.builtin.copy:
+        dest: /etc/dconf/db/local.d/01-background
+        content: |
+          [org/gnome/desktop/background]
           picture-uri='file://{{ wallpaper_dest }}'
           picture-uri-dark='file://{{ wallpaper_dest }}'
           picture-options='zoom'
         mode: '0644'
-      notify: Compile GSettings schemas
+      notify: Update dconf
+
+    - name: Lock background settings to prevent user changes
+      ansible.builtin.copy:
+        dest: /etc/dconf/db/local.d/locks/background
+        content: |
+          /org/gnome/desktop/background/picture-uri
+          /org/gnome/desktop/background/picture-uri-dark
+          /org/gnome/desktop/background/picture-options
+        mode: '0644'
+      notify: Update dconf
 
   handlers:
-    - name: Compile GSettings schemas
-      ansible.builtin.command: glib-compile-schemas /usr/share/glib-2.0/schemas/
+    - name: Update dconf
+      ansible.builtin.command: dconf update
