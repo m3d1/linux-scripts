@@ -62,4 +62,4 @@
 
     - name: Print completion message
       debug:
-        msg: "Wallpaper applied and accent color set to olive
+        msg: "Wallpaper applied and accent color set to olive"
