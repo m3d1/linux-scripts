@@ -297,13 +297,13 @@
       loop: "{{ user_homes.stdout_lines }}"
       register: homes_stat
 
-    - name: Ensure /home/lab08/.omnissa exists
-      ansible.builtin.file:
-        path: /home/lab08/.omnissa
-        state: directory
-        owner: ubuntu
-        group: ubuntu
-        mode: '0755'
+    # - name: Ensure /home/lab08/.omnissa exists
+    #   ansible.builtin.file:
+    #     path: /home/lab08/.omnissa
+    #     state: directory
+    #     owner: ubuntu
+    #     group: ubuntu
+    #     mode: '0755'
 
     - name: Ensure /home/lab08/.omnissa/horizon-preferences exists
       ansible.builtin.file:
