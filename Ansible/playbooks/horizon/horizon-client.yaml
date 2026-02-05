@@ -297,20 +297,20 @@
       loop: "{{ user_homes.stdout_lines }}"
       register: homes_stat
 
-    # - name: Ensure /home/lab08/.omnissa exists
-    #   ansible.builtin.file:
-    #     path: /home/lab08/.omnissa
-    #     state: directory
-    #     owner: ubuntu
-    #     group: ubuntu
-    #     mode: '0755'
+    - name: Ensure /home/lab08/.omnissa exists
+      ansible.builtin.file:
+        path: /home/lab08/.omnissa
+        state: directory
+        owner: lab08
+        group: lab08
+        mode: '0755'
 
     - name: Ensure /home/lab08/.omnissa/horizon-preferences exists
       ansible.builtin.file:
         path: /home/lab08/.omnissa/horizon-preferences
         state: touch
-        owner: ubuntu
-        group: ubuntu
+        owner: lab08
+        group: lab08
         mode: '0644'
 
     - name: Apply Horizon preferences (idempotent) for user ubuntu
@@ -319,8 +319,8 @@
         regexp: "^{{ item.key | regex_escape }}\\s*=.*$"
         line: "{{ item.key }} = '{{ item.val }}'"
         create: true
-        owner: ubuntu
-        group: ubuntu
+        owner: lab08
+        group: lab08
         mode: '0644'
         backrefs: false
       loop:
