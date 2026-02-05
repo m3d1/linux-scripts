@@ -286,7 +286,8 @@
     #   failed_when: false
 
     # ===================== USER PREFERENCES =====================
-
+  
+  #Comment
     # ---- Seed preferences for new users (via /etc/skel) --------------------
     - name: Ensure /etc/skel/.omnissa exists
       ansible.builtin.file:
