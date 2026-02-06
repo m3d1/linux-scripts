@@ -256,24 +256,9 @@
         group: root
         mode: '0755'
 
-    # ---- Copy shortcut to existing users' Desktop if missing ---------------
-    - name: Copy shortcut to existing users' Desktop if missing
-      ansible.builtin.shell: |
-        set -e
-        for d in /home/*; do
-          [ -d "$d/Desktop" ] || continue
-          if [ ! -f "$d/Desktop/{{ desktop_entry_name }}" ]; then
-            cp "{{ desktop_entry_path_system }}" "$d/Desktop/{{ desktop_entry_name }}"
-            chown "$(stat -c '%U:%G' "$d")" "$d/Desktop/{{ desktop_entry_name }}" || true
-          fi
-        done
-      args:
-        executable: /bin/bash
-      mode: '0775'
-      changed_when: false
 
-    # ===================== USER PREFERENCES =====================
-
+  
+  #Comment
     # ---- Seed preferences for new users (via /etc/skel) --------------------
     - name: Ensure /etc/skel/.omnissa exists
       ansible.builtin.file:
@@ -312,30 +297,30 @@
       loop: "{{ user_homes.stdout_lines }}"
       register: homes_stat
 
-    - name: Ensure /home/ubuntu/.omnissa exists
+    - name: Ensure /home/lab08/.omnissa exists
       ansible.builtin.file:
-        path: /home/ubuntu/.omnissa
+        path: /home/lab08/.omnissa
         state: directory
-        owner: ubuntu
-        group: ubuntu
+        owner: lab08
+        group: lab08
         mode: '0755'
 
-    - name: Ensure /home/ubuntu/.omnissa/horizon-preferences exists
+    - name: Ensure /home/lab08/.omnissa/horizon-preferences exists
       ansible.builtin.file:
-        path: /home/ubuntu/.omnissa/horizon-preferences
+        path: /home/lab08/.omnissa/horizon-preferences
         state: touch
-        owner: ubuntu
-        group: ubuntu
+        owner: lab08
+        group: lab08
         mode: '0644'
 
     - name: Apply Horizon preferences (idempotent) for user ubuntu
       ansible.builtin.lineinfile:
-        path: /home/ubuntu/.omnissa/horizon-preferences
+        path: /home/lab08/.omnissa/horizon-preferences
         regexp: "^{{ item.key | regex_escape }}\\s*=.*$"
         line: "{{ item.key }} = '{{ item.val }}'"
         create: true
-        owner: ubuntu
-        group: ubuntu
+        owner: lab08
+        group: lab08
         mode: '0644'
         backrefs: false
       loop:

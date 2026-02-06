@@ -1,0 +1,68 @@
+- name: Force system-wide wallpaper from URL
+  hosts: all
+  become: yes
+  become_user: root
+  vars:
+    wallpaper_url: "https://ledesk.ma/wp-content/uploads/2025/01/WhatsApp-Image-2025-01-28-at-14.49.14-900x600.jpeg"
+    wallpaper_dest: "/usr/share/backgrounds/custom-wallpaper.jpg"
+
+  tasks:
+    - name: Ensure backgrounds directory exists
+      ansible.builtin.file:
+        path: /usr/share/backgrounds
+        state: directory
+        mode: '0755'
+
+    - name: Download wallpaper from URL
+      ansible.builtin.get_url:
+        url: "{{ wallpaper_url }}"
+        dest: "{{ wallpaper_dest }}"
+        mode: '0644'
+
+    - name: Create dconf profile directory
+      ansible.builtin.file:
+        path: /etc/dconf/profile
+        state: directory
+        mode: '0755'
+
+    - name: Set dconf user profile
+      ansible.builtin.copy:
+        dest: /etc/dconf/profile/user
+        content: |
+          user-db:user
+          system-db:local
+        mode: '0644'
+
+    - name: Ensure dconf local database directories exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - /etc/dconf/db/local.d
+        - /etc/dconf/db/local.d/locks
+
+    - name: Define mandatory wallpaper settings
+      ansible.builtin.copy:
+        dest: /etc/dconf/db/local.d/01-background
+        content: |
+          [org/gnome/desktop/background]
+          picture-uri='file://{{ wallpaper_dest }}'
+          picture-uri-dark='file://{{ wallpaper_dest }}'
+          picture-options='zoom'
+        mode: '0644'
+      notify: Update dconf
+
+    - name: Lock background settings to prevent user changes
+      ansible.builtin.copy:
+        dest: /etc/dconf/db/local.d/locks/background
+        content: |
+          /org/gnome/desktop/background/picture-uri
+          /org/gnome/desktop/background/picture-uri-dark
+          /org/gnome/desktop/background/picture-options
+        mode: '0644'
+      notify: Update dconf
+
+  handlers:
+    - name: Update dconf
+      ansible.builtin.command: dconf update
