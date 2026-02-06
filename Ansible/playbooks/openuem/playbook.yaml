@@ -19,7 +19,7 @@
       ansible.builtin.debconf:
         name: openuem-agent
         question: openuem-agent/nats-server
-        value: "uem.aui.maincampus.root:4433"
+        value: "nats.uem.aui.maincampus.root:4433"
         vtype: text
 
     - name: Set to generate locales
