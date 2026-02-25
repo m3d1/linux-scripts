@@ -60,7 +60,7 @@ create_its_user() {
     log "User '$u' already exists."
   else
     log "Creating standard user '$u' (no sudo)..."
-    adduser --disabled-password --gecos "" --shell "${STANDARD_SHELL}" "$u"
+    adduser --disabled-password --gecos "" --shell "${USER_SHELL}" "$u"
     sudo usermod -aG sudo "$u"
     # Ensure password auth is locked until explicitly set by admin
     passwd -l "$u" >/dev/null 2>&1 || true
