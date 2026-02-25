@@ -8,11 +8,15 @@
   gather_facts: true
 
   vars:
-    target_user: "aui"
+    target_user: "lab08"
     download_dir: "/home/{{ target_user }}/Downloads"
     sgd_rpm_url: "https://published.desktops.eu-frankfurt-1.oci.oraclecloud.com/client/client_packages/sgdclient-el7.x86_64.rpm"
     rpm_filename: "{{ sgd_rpm_url | basename }}"
     installed_marker_path: "/usr/bin/ttconnect" # <— Adjust to a real path/binary after first install
+    site_name: "ORACLE VDI"
+    site_url: "https://published.desktops.eu-frankfurt-1.oci.oraclecloud.com/client"
+    user_home: "/home/{{ target_user }}"
+    site_slug: "vdi-portal"
 
   pre_tasks:
     - name: Ensure OS is Debian/Ubuntu
@@ -81,4 +85,40 @@
         msg:
           - "Downloaded file: {{ download_dir }}/{{ rpm_filename }}"
           - "Installation executed: {{ (not sgd_installed.stat.exists) | ternary('yes', 'no') }}"
+        
+    - name: Create Web shortcut (.desktop)
+      copy:
+        dest: "{{ user_home }}/.local/share/applications/{{ site_slug }}.desktop"
+        content: |
+          [Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name={{ site_name }}
+          Comment=Web shortcut for Oracle VDI
+          Exec=xdg-open {{ site_url }}
+          Terminal=false
+          Categories=Network;WebBrowser;
+        owner: lab08
+        group: lab08
+        mode: '0755'
+    
+    - name: Create Desktop shortcut
+      file:
+        src: "{{ user_home }}/.local/share/applications/{{ site_slug }}.desktop"
+        dest: "{{ user_home }}/Desktop/{{ site_name }}.desktop"
+        state: link
+        owner: lab08
+        group: lab08
+
+    - name: Add web shortcut to GNOME favorites
+      become_user: lab08
+      shell: |
+        current=$(gsettings get org.gnome.shell favorite-apps)
+        if [[ "$current" != *"{{ site_slug }}.desktop"* ]]; then
+          gsettings set org.gnome.shell favorite-apps \
+          "$(echo "$current" | sed "s/]$/, '{{ site_slug }}.desktop']/")"
+        fi
+
+
+
           
