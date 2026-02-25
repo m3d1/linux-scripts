@@ -161,7 +161,7 @@ done
 
 ##hardcoded passwords
 sudo chpasswd -e <<EOF
-its-sd:\$y\$j9T\$MSaqh4yleRu0B8gKHhda//\$NDvR.uGYN6DuZQkUvuk93U2PuKbfG3i5bQkkFtbeDU0
+its-sd:its-sd:\$y\$j9T\$efigzrwV7ykf6ZRX6Dl0n1\$Qkgi6.eu9AKKXcq9toBYsPuj7zqv4g1zNNuuNb/YhY5
 its-admin:\$y\$j9T\$TF2QD8EIsY3hcPSb8CaRP1\$ICX6f.Bf7qCdSHCV1aITTMs6VNqTK2bAqWyQP3WxLi2
 EOF
 
