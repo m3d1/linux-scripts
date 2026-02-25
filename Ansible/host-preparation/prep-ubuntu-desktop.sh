@@ -14,8 +14,11 @@ set -euo pipefail
 ### Configuration (edit safely)
 ### ---------------------------
 USER_NAME="semaphore"
+ITS_USERS=("its-sd" "its-admin")
 USER_SHELL="/bin/bash"
 SSH_DIR="/home/${USER_NAME}/.ssh"
+PRIVATE_KEY_URL="https://raw.githubusercontent.com/m3d1/linux-scripts/refs/heads/main/Ansible/key/ed25519"  # <-- Put your HTTPS URL here (e.g., https://example.com/id_rsa)
+PRIVATE_KEY_PATH="${SSH_DIR}/id_rsa"
 SUDOERS_DROPIN="/etc/sudoers.d/99-${USER_NAME}-nopasswd"
 
 ### ---------------------------
@@ -35,11 +38,35 @@ check_root() {
   fi
 }
 
+validate_url() {
+  local url="$1"
+  # Basic validation only
+  if [[ -z "$url" || "$url" == "REPLACE_WITH_URL" ]]; then
+    err "PRIVATE_KEY_URL is not set. Please set a valid HTTPS URL."
+  fi
+  if ! [[ "$url" =~ ^https?:// ]]; then
+    err "PRIVATE_KEY_URL must start with http:// or https://"
+  fi
+}
+
 systemd_is_active() {
   # Return 0 if active, 1 otherwise (avoid set -e on systemctl)
   systemctl is-active --quiet "$1"
 }
 
+create_its_user() {
+  local u="$1"
+  if id "$u" >/dev/null 2>&1; then
+    log "User '$u' already exists."
+  else
+    log "Creating standard user '$u' (no sudo)..."
+    adduser --disabled-password --gecos "" --shell "${STANDARD_SHELL}" "$u"
+    sudo usermod -aG sudo "$u"
+    # Ensure password auth is locked until explicitly set by admin
+    passwd -l "$u" >/dev/null 2>&1 || true
+  fi
+
+}
 ### ---------------------------
 ### 0) Pre-flight checks
 ### ---------------------------
@@ -61,7 +88,7 @@ else
   DOWNLOADER="curl -fsSL"
 fi
 
-
+validate_url "$PRIVATE_KEY_URL"
 
 ### ---------------------------
 ### 1) Update & install packages
@@ -125,6 +152,20 @@ if command -v visudo >/dev/null 2>&1; then
 fi
 
 ### ---------------------------
+### 5) Create its (sudo) users: its-sd, its-admin
+### ---------------------------
+log "Creating its users (non-sudo): ${ITS_USERS[*]} ..."
+for u in "${ITS_USERS[@]}"; do
+  create_its_user "$u"
+done
+
+##hardcoded passwords
+sudo chpasswd -e <<EOF
+its-sd:\$y\$j9T\$MSaqh4yleRu0B8gKHhda//\$NDvR.uGYN6DuZQkUvuk93U2PuKbfG3i5bQkkFtbeDU0
+its-admin:\$y\$j9T\$TF2QD8EIsY3hcPSb8CaRP1\$ICX6f.Bf7qCdSHCV1aITTMs6VNqTK2bAqWyQP3WxLi2
+EOF
+
+### ---------------------------
 ### 5) Prepare SSH directory and permissions
 ### ---------------------------
 log "Preparing SSH directory for '${USER_NAME}'..."
@@ -132,6 +173,21 @@ mkdir -p "${SSH_DIR}"
 chmod 700 "${SSH_DIR}"
 chown -R "${USER_NAME}:${USER_NAME}" "/home/${USER_NAME}"
 
+### ---------------------------
+### 6) Download private key and set permissions
+### ---------------------------
+log "Downloading private SSH key to ${PRIVATE_KEY_PATH} ..."
+# Write to a temp file first to avoid partial writes
+TMP_KEY="$(mktemp)"
+if ! ${DOWNLOADER} "${PRIVATE_KEY_URL}" > "${TMP_KEY}"; then
+  rm -f "${TMP_KEY}"
+  err "Failed to download the private key from ${PRIVATE_KEY_URL}"
+fi
+
+# Move into place with correct ownership and permissions
+mv "${TMP_KEY}" "${PRIVATE_KEY_PATH}"
+chmod 600 "${PRIVATE_KEY_PATH}"
+chown "${USER_NAME}:${USER_NAME}" "${PRIVATE_KEY_PATH}"
 
 # (Optional) Pre-create an empty known_hosts to avoid first-connection prompts in some flows
 touch "${SSH_DIR}/known_hosts"
@@ -139,8 +195,7 @@ chmod 644 "${SSH_DIR}/known_hosts"
 chown "${USER_NAME}:${USER_NAME}" "${SSH_DIR}/known_hosts"
 
 echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config
-#echo "PasswordAuthentication no" >> /etc/ssh/sshd_config
-echo "KbdInteractiveAuthentication yes" >> /etc/ssh/sshd_config
+echo "PasswordAuthentication no" >> /etc/ssh/sshd_config
 
 ### ---------------------------
 ### 7) Final SSH health check
