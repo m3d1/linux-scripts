@@ -89,7 +89,7 @@
         update_cache: true
         cache_valid_time: 7200
 
-    # ---- libgtk check (robuste, évite les chaînes vides) -------------------
+    # ---- libgtk check -------------------
     - name: Check current libgtk-3-0 version (if installed)
       ansible.builtin.command: "dpkg-query -W -f='${Version}' {{ libgtk_pkg_name }}"
       register: libgtk_ver
@@ -297,30 +297,30 @@
       loop: "{{ user_homes.stdout_lines }}"
       register: homes_stat
 
-    - name: Ensure /home/lab08/.omnissa exists
+    - name: Ensure /home/lab8/.omnissa exists
       ansible.builtin.file:
-        path: /home/lab08/.omnissa
+        path: /home/lab8/.omnissa
         state: directory
-        owner: lab08
-        group: lab08
+        owner: lab8
+        group: lab8
         mode: '0755'
 
-    - name: Ensure /home/lab08/.omnissa/horizon-preferences exists
+    - name: Ensure /home/lab8/.omnissa/horizon-preferences exists
       ansible.builtin.file:
-        path: /home/lab08/.omnissa/horizon-preferences
+        path: /home/lab8/.omnissa/horizon-preferences
         state: touch
-        owner: lab08
-        group: lab08
+        owner: lab8
+        group: lab8
         mode: '0644'
 
-    - name: Apply Horizon preferences (idempotent) for user ubuntu
+    - name: Apply Horizon preferences (idempotent) for user lab8
       ansible.builtin.lineinfile:
-        path: /home/lab08/.omnissa/horizon-preferences
+        path: /home/lab8/.omnissa/horizon-preferences
         regexp: "^{{ item.key | regex_escape }}\\s*=.*$"
         line: "{{ item.key }} = '{{ item.val }}'"
         create: true
-        owner: lab08
-        group: lab08
+        owner: lab8
+        group: lab8
         mode: '0644'
         backrefs: false
       loop:
