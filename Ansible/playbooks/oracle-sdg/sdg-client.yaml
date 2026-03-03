@@ -8,7 +8,7 @@
   gather_facts: true
 
   vars:
-    target_user: "lab8"
+    target_user: "lab08"
     download_dir: "/home/{{ target_user }}/Downloads"
     sgd_rpm_url: "https://published.desktops.eu-frankfurt-1.oci.oraclecloud.com/client/client_packages/sgdclient-el7.x86_64.rpm"
     rpm_filename: "{{ sgd_rpm_url | basename }}"
@@ -98,8 +98,8 @@
           Exec=xdg-open {{ site_url }}
           Terminal=false
           Categories=Network;WebBrowser;
-        owner: lab8
-        group: lab8
+        owner: lab08
+        group: lab08
         mode: '0755'
     
     - name: Create Desktop shortcut
@@ -107,11 +107,11 @@
         src: "{{ user_home }}/.local/share/applications/{{ site_slug }}.desktop"
         dest: "{{ user_home }}/Desktop/{{ site_name }}.desktop"
         state: link
-        owner: lab8
-        group: lab8
+        owner: lab08
+        group: lab08
 
     - name: Add web shortcut to GNOME favorites
-      become_user: lab8
+      become_user: lab08
       shell: |
         current=$(gsettings get org.gnome.shell favorite-apps)
         if [[ "$current" != *"{{ site_slug }}.desktop"* ]]; then
